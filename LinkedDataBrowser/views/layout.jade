@@ -1,0 +1,17 @@
+!!!5
+html
+	head
+		title My Site
+			link(rel='stylesheet', href='/stylesheets/style.css')
+	body
+		header
+		h1 My Site
+		.container
+			div
+				table(style="border:2px solid black")
+					-var label = null
+					-each value, key in json
+						-each v, k in value
+							tr(style="border:2px solid black")
+								td(style='width: '+(100/2)+'%'). #{decodeURI(k)}
+								td(style='width: '+(100/2)+'%'). #{decodeURI(v)}
