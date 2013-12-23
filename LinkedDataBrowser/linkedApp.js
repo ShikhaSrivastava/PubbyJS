@@ -1,5 +1,6 @@
 /*
  * Module dependencies
+ * FINAL WORKING CODE
  */
 var express = require('express')
 , stylus = require('stylus')
@@ -34,7 +35,7 @@ function executeSparqlrdfstore(uriParam, languageParam, limit, res)
 {
 	var uriString = uriParam;
 	rdfstore.create(function(store) {
-		var query1="Construct { "+uriString+" ?p ?o. ?o rdfs:label ?lbl. ?o foaf:depiction ?dep. ?p rdfs:label ?plbl} where { "+uriString+" ?p ?o. OPTIONAL{?o rdfs:label ?lbl}. OPTIONAL{?o foaf:depiction ?dep} OPTIONAL{?p rdfs:label ?plbl} }";
+		var query1="Construct { "+uriString+" ?p ?o. ?o rdfs:label ?lbl. ?o foaf:depiction ?dep. ?p rdfs:label ?plbl} where { "+uriString+" ?p ?o. OPTIONAL{?o rdfs:label ?lbl} OPTIONAL{?o foaf:depiction ?dep} OPTIONAL{?p rdfs:label ?plbl} }";
 		var query=encodeURIComponent(query1);
 		var url=lbProperties["endpoint"]+"?query=" + query + "&format=text%2Fturtle";
 		var xmlHttp = null;
@@ -68,94 +69,27 @@ function convertJSONintoRequiredFormat(jsonResult, store, pLanguage, limit)
 	var jsonItem;
 	var convertedJSON = '[';
 	var lim = '';
-
 	if(limit > 0)
 		lim = 'LIMIT '+limit;
-
 	for (i in jsonResult)
-	{
-		if(jsonItem == jsonResult[i].y.value)
-		{
-			if(jsonResult[i].z.token == 'literal')
+	{		if(jsonItem == jsonResult[i].y.value)
+		{if(jsonResult[i].z.token == 'literal')
 			{
-				convertedJSON = convertedJSON + '{type:\"literal\", value:';
-				convertedJSON = convertedJSON + '\"' + escape(jsonResult[i].z.value) + '\"' + '},';
+				convertedJSON = getJSONforLiteral(convertedJSON, jsonResult[i].z.value);
 			}
 			else if(jsonResult[i].z.token == 'uri')
-			{
-				if(jsonResult[i].z.value.indexOf(internalURI) !== -1)
+			{if(jsonResult[i].z.value.indexOf(internalURI) !== -1)
 				{
-					convertedJSON = convertedJSON + '{type:\"internaluri\",';
-					var intURI = jsonResult[i].z.value;
-					store.execute('PREFIX rdfs:  <http://www.w3.org/2000/01/rdf-schema#> PREFIX foaf: <http://xmlns.com/foaf/0.1/> PREFIX : <'+lbProperties["prefix"]+'> SELECT ?l where {?z rdfs:label ?l. FILTER(?z=<'+intURI+'>) FILTER (lang(?l)="'+prefLanguage+'") } '+lim, function(success, resultsLBL) {
-						var lblJSON = eval('(' + JSON.stringify(resultsLBL[0]) + ')');
-						var lblCnt = 0;
-						var lblArray = '';
-						for (var p = 0; p < resultsLBL.length; p++) {
-							for (name in resultsLBL[p]) {
-								lblArray = lblArray + '\"' + escape(resultsLBL[p][name]["value"]) + '\",'
-								lblCnt = lblCnt+1;
-							}
-						}
-						if(lblCnt > 0)
-						{
-							lblArray = lblArray.substring(0,lblArray.length-1);
-							lblArray = 'label:'+ '[' + lblArray + '],';
-							convertedJSON = convertedJSON + lblArray;
-						}
-						else
-						{
-							var URIvalue = jsonResult[i].z.value;
-							URIvalue = URIvalue.substring(URIvalue.lastIndexOf("/")+1);
-							URIvalue = URIvalue.replace("_"," ");
-							lblArray = 'label:'+ '[\"' + escape(URIvalue) + '\"],';
-							convertedJSON = convertedJSON + lblArray;
-						}
-					}); 
-					store.execute('PREFIX rdfs:  <http://www.w3.org/2000/01/rdf-schema#> PREFIX foaf: <http://xmlns.com/foaf/0.1/> PREFIX : <'+lbProperties["prefix"]+'> SELECT ?d where {?z foaf:depiction ?d. FILTER(?z=<'+intURI+'>)} '+lim, function(success, resultsDEP) {
-						var depJSON = eval('(' + JSON.stringify(resultsDEP[0]) + ')');
-						var depCnt = 0;
-						var depArray = '';
-						for (var p = 0; p < resultsDEP.length; p++) {
-							for (name in resultsDEP[p]) {
-								depArray = depArray + '\"' + escape(resultsDEP[p][name]["value"]) + '\",'
-								depCnt = depCnt+1;
-							}
-						}
-						if(depCnt > 0)
-						{
-							depArray = depArray.substring(0,depArray.length-1);
-							depArray = 'depiction:'+ '[' + depArray + '],';
-							convertedJSON = convertedJSON + depArray;
-						}
-					});      
-					convertedJSON = convertedJSON + 'value:'+'\"' + escape(jsonResult[i].z.value) + '\"' + '},';
+				convertedJSON = getJSONforInternalURI(convertedJSON, store, jsonResult[i].z.value, prefLanguage, lim);
 				}
 				else
 				{
-					convertedJSON = convertedJSON + '{type:\"externaluri\", value:';
-					convertedJSON = convertedJSON + '\"' + escape(jsonResult[i].z.value) + '\",';
-					var URIvalue = jsonResult[i].z.value;
-					var lIndex = 0;
-					if((URIvalue.substring(URIvalue.lastIndexOf("/"))).length > 2)
-					{
-						lIndex = URIvalue.lastIndexOf("/")
-					}
-					else
-					{
-						lIndex = (URIvalue.substring(0, URIvalue.lastIndexOf("/")-1)).lastIndexOf("/");
-					}
-					URIvalue = URIvalue.substring(lIndex+1);
-					URIvalue = URIvalue.replace("_"," ");
-					URIvalue = URIvalue.replace("/"," ");
-					lblArray = 'label:'+ '[\"' + escape(URIvalue) + '\"],';
-					convertedJSON = convertedJSON + lblArray + '},';
+					convertedJSON = getJSONforExternalURI(convertedJSON, jsonResult[i].z.value, 'label');
 				}
 			}
 		}
 		else
-		{
-			if(!!jsonItem)
+		{if(!!jsonItem)
 			{
 				convertedJSON = convertedJSON.substring(0,convertedJSON.length-1);
 				convertedJSON = convertedJSON + ']},';
@@ -164,35 +98,10 @@ function convertJSONintoRequiredFormat(jsonResult, store, pLanguage, limit)
 			convertedJSON = convertedJSON + '{uri:\"' + encodeURI(jsonResult[i].y.value) + '\",';
 			if(jsonItem.indexOf(internalURI) !== -1)
 			{
-				store.execute('PREFIX rdfs:  <http://www.w3.org/2000/01/rdf-schema#> PREFIX foaf: <http://xmlns.com/foaf/0.1/> PREFIX : <'+lbProperties["prefix"]+'> SELECT ?l where {?z rdfs:label ?l. FILTER(?z=<'+jsonItem+'>) FILTER (lang(?l)="'+prefLanguage+'") } '+lim, function(success, resultsLBL) {
-					var lblJSON = eval('(' + JSON.stringify(resultsLBL[0]) + ')');
-					var lblCnt = 0;
-					var lblArray = '';
-					for (var p = 0; p < resultsLBL.length; p++) {
-						for (name in resultsLBL[p]) {
-							lblArray = lblArray + '\"' + escape(resultsLBL[p][name]["value"]) + '\",'
-							lblCnt = lblCnt+1;
-						}
-					}
-					if(lblCnt > 0)
-					{
-						lblArray = lblArray.substring(0,lblArray.length-1);
-						lblArray = 'label:'+ '[' + lblArray + '],';
-						convertedJSON = convertedJSON + lblArray;
-					}
-					else
-					{
-						var URIvalue = jsonItem;
-						URIvalue = URIvalue.substring(URIvalue.lastIndexOf("/")+1);
-						URIvalue = URIvalue.replace("_"," ");
-						lblArray = 'label:'+ '[\"' + escape(URIvalue) + '\"],';
-						convertedJSON = convertedJSON + lblArray;
-					}
-				}); 
+			convertedJSON = getData(convertedJSON, store, 'rdfs:label', jsonItem, prefLanguage, lim, 'label');
 			}
 			else
-			{
-				var URIvalue = jsonItem;
+			{var URIvalue = jsonItem;
 				var lIndex = 0;
 				if((URIvalue.substring(URIvalue.lastIndexOf("/"))).length > 2)
 				{
@@ -202,89 +111,22 @@ function convertJSONintoRequiredFormat(jsonResult, store, pLanguage, limit)
 				{
 					lIndex = (URIvalue.substring(0, URIvalue.lastIndexOf("/")-1)).lastIndexOf("/");
 				}
-				URIvalue = URIvalue.substring(lIndex+1);
-				URIvalue = URIvalue.replace("_"," ");
-				URIvalue = URIvalue.replace("/"," ");
-				lblArray = 'label:'+ '[\"' + escape(URIvalue) + '\"],';
-				convertedJSON = convertedJSON + lblArray;
+				convertedJSON = convertedJSON + getLabelFromURI(URIvalue, lIndex, 'label');
 			}
 			convertedJSON = convertedJSON + 'values:[';
 			if(!!jsonResult[i].z.value)
-			{
-				if(jsonResult[i].z.token == 'literal')
+			{if(jsonResult[i].z.token == 'literal')
 				{
-					convertedJSON = convertedJSON + '{type:\"literal\", value:';
-					convertedJSON = convertedJSON + '\"' + escape(jsonResult[i].z.value) + '\"' + '},';
+					convertedJSON = getJSONforLiteral(convertedJSON, jsonResult[i].z.value);
 				}
 				else if(jsonResult[i].z.token == 'uri')
-				{
-					if(jsonResult[i].z.value.indexOf(internalURI) !== -1)
+				{if(jsonResult[i].z.value.indexOf(internalURI) !== -1)
 					{
-						convertedJSON = convertedJSON + '{type:\"internaluri\",';
-						var intURI = jsonResult[i].z.value;
-						store.execute('PREFIX rdfs:  <http://www.w3.org/2000/01/rdf-schema#> PREFIX foaf: <http://xmlns.com/foaf/0.1/> PREFIX : <'+lbProperties["prefix"]+'> SELECT ?l where {?z rdfs:label ?l. FILTER(?z=<'+intURI+'>) FILTER (lang(?l)="'+prefLanguage+'") } '+lim, function(success, resultsLBL) {
-							var lblJSON = eval('(' + JSON.stringify(resultsLBL[0]) + ')');
-							var lblCnt = 0;
-							var lblArray = '';
-							for (var p = 0; p < resultsLBL.length; p++) {
-								for (name in resultsLBL[p]) {
-									lblArray = lblArray + '\"' + escape(resultsLBL[p][name]["value"]) + '\",'
-									lblCnt = lblCnt+1;
-								}
-							}
-							if(lblCnt > 0)
-							{
-								lblArray = lblArray.substring(0,lblArray.length-1);
-								lblArray = 'label:'+ '[' + lblArray + '],';
-								convertedJSON = convertedJSON + lblArray;
-							}
-							else
-							{
-								var URIvalue = jsonResult[i].z.value;
-								URIvalue = URIvalue.substring(URIvalue.lastIndexOf("/")+1);
-								URIvalue = URIvalue.replace("_"," ");
-								lblArray = 'label:'+ '[\"' + escape(URIvalue) + '\"],';
-								convertedJSON = convertedJSON + lblArray;
-							}
-						}); 
-						store.execute('PREFIX rdfs:  <http://www.w3.org/2000/01/rdf-schema#> PREFIX foaf: <http://xmlns.com/foaf/0.1/> PREFIX : <'+lbProperties["prefix"]+'> SELECT ?d where {?z foaf:depiction ?d. FILTER(?z=<'+intURI+'>)} '+lim, function(success, resultsDEP) {
-							var depJSON = eval('(' + JSON.stringify(resultsDEP[0]) + ')');
-							var depCnt = 0;
-							var depArray = '';
-							for (var p = 0; p < resultsDEP.length; p++) {
-								for (name in resultsDEP[p]) {
-									depArray = depArray + '\"' + escape(depJSON[name]["value"]) + '\",'
-									depCnt = depCnt+1;
-								}
-							}
-							if(depCnt > 0)
-							{
-								depArray = depArray.substring(0,depArray.length-1);
-								depArray = 'depiction:'+ '[' + depArray + '],';
-								convertedJSON = convertedJSON + depArray;
-							}
-						});    
-						convertedJSON = convertedJSON + 'value:'+'\"' + escape(jsonResult[i].z.value) + '\"' + '},';
+						convertedJSON = getJSONforInternalURI(convertedJSON, store, jsonResult[i].z.value, prefLanguage, lim);
 					}
 					else
 					{
-						convertedJSON = convertedJSON + '{type:\"externaluri\", value:';
-						convertedJSON = convertedJSON + '\"' + escape(jsonResult[i].z.value) + '\",';
-						var URIvalue = jsonResult[i].z.value;
-						var lIndex = 0;
-						if((URIvalue.substring(URIvalue.lastIndexOf("/"))).length > 2)
-						{
-							lIndex = URIvalue.lastIndexOf("/")
-						}
-						else
-						{
-							lIndex = (URIvalue.substring(0, URIvalue.lastIndexOf("/")-1)).lastIndexOf("/");
-						}
-						URIvalue = URIvalue.substring(lIndex+1);
-						URIvalue = URIvalue.replace("_"," ");
-						URIvalue = URIvalue.replace("/"," ");
-						lblArray = 'label:'+ '[\"' + escape(URIvalue) + '\"],';
-						convertedJSON = convertedJSON + lblArray + '},';
+						convertedJSON = getJSONforExternalURI(convertedJSON, jsonResult[i].z.value, 'label');
 					}
 				}
 			}
@@ -296,9 +138,79 @@ function convertJSONintoRequiredFormat(jsonResult, store, pLanguage, limit)
 	var uriJSON = eval('(' + convertedJSON + ')');
 	return uriJSON;
 }
+function getJSONforLiteral(convertedJSON, literal)
+{
+					convertedJSON = convertedJSON + '{type:\"literal\", value:';
+					convertedJSON = convertedJSON + '\"' + escape(literal) + '\"' + '},';
+				return convertedJSON;
+}
+function getJSONforInternalURI(convertedJSON, store, intURI, prefLanguage, lim)
+{
+						convertedJSON = convertedJSON + '{type:\"internaluri\",';
+						convertedJSON = getData(convertedJSON, store, 'rdfs:label', intURI, prefLanguage, lim, 'label');
+						convertedJSON = getData(convertedJSON, store, 'foaf:depiction', intURI, prefLanguage, lim, 'depiction');
+						convertedJSON = convertedJSON + 'value:'+'\"' + escape(intURI) + '\"' + '},';
+				return convertedJSON;
+}
+function getJSONforExternalURI(convertedJSON, externalURI, propertyKey)
+{
+convertedJSON = convertedJSON + '{type:\"externaluri\", value:';
+						convertedJSON = convertedJSON + '\"' + escape(externalURI) + '\",';
+						var URIvalue = externalURI;
+						var lIndex = 0;
+						if((URIvalue.substring(URIvalue.lastIndexOf("/"))).length > 2)
+						{
+							lIndex = URIvalue.lastIndexOf("/")
+						}
+						else
+						{
+							lIndex = (URIvalue.substring(0, URIvalue.lastIndexOf("/")-1)).lastIndexOf("/");
+						}
+						convertedJSON = convertedJSON + getLabelFromURI(URIvalue, lIndex, propertyKey) + '},';
+			return convertedJSON;
+}
+function getLabelFromURI(URIvalue, lIndex, propertyKey)
+{
+						URIvalue = URIvalue.substring(lIndex+1);
+						URIvalue = URIvalue.replace("_"," ");
+						URIvalue = URIvalue.replace("/"," ");
+						lblArray = propertyKey+':'+ '[\"' + escape(URIvalue) + '\"],';
+				return lblArray;
+}
+function getData(convertedJSON, store, propertyName, intURI, prefLanguage, lim, propertyKey)
+{
+var query = '';
+if(propertyKey == 'label')
+	query = 'PREFIX rdfs:  <http://www.w3.org/2000/01/rdf-schema#> PREFIX foaf: <http://xmlns.com/foaf/0.1/> PREFIX : <'+lbProperties["prefix"]+'> SELECT ?l where {<'+intURI+'> '+propertyName+' ?l. FILTER (lang(?l)="'+prefLanguage+'") } '+lim;
+else
+	query = 'PREFIX rdfs:  <http://www.w3.org/2000/01/rdf-schema#> PREFIX foaf: <http://xmlns.com/foaf/0.1/> PREFIX : <'+lbProperties["prefix"]+'> SELECT ?l where {<'+intURI+'> '+propertyName+' ?l. } '+lim
+store.execute(query, function(success, results) {
+						var resJSON = results[0];
+						var resCnt = 0;
+						var resArray = '';
+						for (var p = 0; p < results.length; p++) {
+							for (name in results[p]) {
+								resArray = resArray + '\"' + escape(results[p][name]["value"]) + '\",'
+								resCnt = resCnt+1;
+							}
+						}
+						if(resCnt > 0)
+						{
+							resArray = resArray.substring(0,resArray.length-1);
+							resArray = propertyKey+':'+ '[' + resArray + '],';
+							convertedJSON = convertedJSON + resArray;
+						}
+						else
+						{
+							convertedJSON = convertedJSON + getLabelFromURI(intURI, intURI.lastIndexOf("/"), propertyKey);
+						}
+					});
+		return convertedJSON;
+}
 function dispMyJSON(jsonResult)
 {
 	var myOBJ = eval('(' + jsonResult + ')');
+	//console.log(JSON.stringify(myOBJ));
 }
 function displaySparql(jsonData)
 {
