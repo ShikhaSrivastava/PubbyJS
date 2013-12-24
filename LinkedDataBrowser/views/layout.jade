@@ -1,17 +1,54 @@
-!!!5
 html
 	head
-		title My Site
-			link(rel='stylesheet', href='/stylesheets/style.css')
+		link(href='/css/bootstrap.min.css', rel='stylesheet', media='screen')
+		link(href='/css/mystyle.css', rel='stylesheet', media='screen')
+		title Linked Data Browser
 	body
-		header
-		h1 My Site
-		.container
-			div
-				table(style="border:2px solid black")
-					-var label = null
-					-each value, key in json
-						-each v, k in value
-							tr(style="border:2px solid black")
-								td(style='width: '+(100/2)+'%'). #{decodeURI(k)}
-								td(style='width: '+(100/2)+'%'). #{decodeURI(v)}
+		.mycontainer
+			-each element in json
+				if unescape(element.label)=="rdf-schema#label"
+					.row
+						.col 
+							h1 #{unescape(element.values[0].value)}
+				if unescape(element.label)=="depiction"
+					.col
+						<img src="#{unescape(element.values[0].value)}" width=300 height=20 title="#{unescape(element.values[0].value)}" alt="No image" />
+			-each item in json
+				-var label=unescape(item.label)
+				.row
+					.span4
+						p #{unescape(item.label)}
+					.span8
+						-each items in item.values
+							.row
+								-var type=items.type
+								-var lbl=unescape(items.label)
+								-var dep=unescape(items.depiction)
+								if label=="thumbnail"
+									.span8
+										.full-width
+											<img src="#{unescape(items.value)}" width="200" height="100" title="#{unescape(items.value)}" alt="No image" />
+								else if label=="Link from a Wikipage to an external page"
+									.span8
+										.full-width
+											p <a href="#{unescape(items.value)}" title="#{unescape(items.value)}">#{unescape(items.value)}</a>
+								else if type=="literal"
+									.span8
+										.full-width
+											p #{unescape(items.value)}
+								else if type=="internaluri"
+									if lbl!="undefined"
+										.span4
+											p <a href="http://localhost:3000/query?internalUri=#{unescape(items.value)}&preferredLanguage=en&limit=10" title="#{unescape(items.value)}">#{unescape(items.label)}</a>
+									if dep!="undefined"
+										.span4
+											<img src="#{unescape(items.depiction)}" width="50" height="40" title="#{unescape(items.depiction)}" alt="No image" />
+								else 
+									if type=="externaluri"
+										.span8
+											.full-width
+												p #{unescape(items.label)}
+					
+		script(src='https://code.jquery.com/jquery-1.10.2.min.js')
+		script(src='/js/jquery.js')
+		script(src='/js/bootstrap.min.js')
