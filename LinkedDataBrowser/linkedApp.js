@@ -210,7 +210,7 @@ store.execute(query, function(success, results) {
 function dispMyJSON(jsonResult)
 {
 	var myOBJ = eval('(' + jsonResult + ')');
-	//console.log(JSON.stringify(myOBJ));
+	console.log(JSON.stringify(myOBJ,null ,'  '));
 }
 function displaySparql(jsonData)
 {
