@@ -28,7 +28,7 @@ There is one object that contains the information for a property and all the val
         - `literal`: a literal value.
     - `label`: an array of labels for `internaluris`, any could be used to show it.
     - `depiction`: an array of URLs containing images (the current code computes these incorrectly and includes bogus values for depictions.
-    - `value`: the actional value.
+    - `value`: the actual value.
   
 Here is an example:
 ```
